@@ -1,0 +1,193 @@
+name: Deploy Chat Application to AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        script: |
+          echo "🚀 Starting automated deployment..."
+          echo "=================================="
+          
+          # Update system packages
+          echo "📦 Updating system packages..."
+          sudo apt update && sudo apt upgrade -y
+          
+          # Install essential packages if not present
+          echo "🔧 Installing essential packages..."
+          sudo apt install -y python3 python3-pip python3-venv python3-dev build-essential libpq-dev nginx git curl wget
+          
+          # Start and enable services
+          echo "🔄 Starting services..."
+          sudo systemctl start nginx
+          sudo systemctl enable nginx
+          
+          # Create application directory if it doesn't exist
+          echo "📁 Setting up application directory..."
+          sudo mkdir -p /var/www/chatbot-app
+          sudo chown ubuntu:ubuntu /var/www/chatbot-app
+          
+          # Navigate to application directory
+          cd /var/www/chatbot-app
+          
+          # Clone or update repository
+          if [ ! -d ".git" ]; then
+            echo "📥 Cloning repository..."
+            git clone https://github.com/${{ github.repository }}.git .
+          else
+            echo "🔄 Pulling latest changes..."
+            git pull origin main
+          fi
+          
+          # Set up Python virtual environment
+          echo "🐍 Setting up Python environment..."
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+          fi
+          source venv/bin/activate
+          
+          # Install/update dependencies
+          echo "📚 Installing Python dependencies..."
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          # Database is already set up on AWS RDS
+          echo "🗄️ Using AWS RDS database..."
+          
+          # Set up environment variables
+          echo "⚙️ Configuring environment..."
+          cat > .env << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          FLASK_ENV=production
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          PORT=5000
+          HOST=0.0.0.0
+          EOF
+          
+          # Run database setup
+          echo "🗃️ Setting up database tables..."
+          python -c "
+          from models import db
+          if db.connect():
+              db.create_tables()
+              print('Database tables created successfully')
+              db.disconnect()
+          else:
+              print('Database connection failed')
+              exit(1)
+          "
+          
+          # Create systemd service file
+          echo "🔧 Creating systemd service..."
+          sudo tee /etc/systemd/system/chatbot-app.service > /dev/null << EOF
+          [Unit]
+          Description=Chatbot Application
+          After=network.target
+          
+          [Service]
+          Type=exec
+          User=ubuntu
+          Group=ubuntu
+          WorkingDirectory=/var/www/chatbot-app
+          Environment=PATH=/var/www/chatbot-app/venv/bin
+          EnvironmentFile=/var/www/chatbot-app/.env
+          ExecStart=/var/www/chatbot-app/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 3 app:app
+          ExecReload=/bin/kill -s HUP \$MAINPID
+          Restart=always
+          RestartSec=10
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Create Nginx configuration
+          echo "🌐 Configuring Nginx..."
+          sudo tee /etc/nginx/sites-available/chatbot-app > /dev/null << EOF
+          server {
+              listen 80;
+              server_name _;
+              
+              location / {
+                  proxy_pass http://127.0.0.1:5000;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+              }
+              
+              location /static {
+                  alias /var/www/chatbot-app/static;
+                  expires 1y;
+                  add_header Cache-Control "public, immutable";
+              }
+              
+              add_header X-Frame-Options "SAMEORIGIN" always;
+              add_header X-XSS-Protection "1; mode=block" always;
+              add_header X-Content-Type-Options "nosniff" always;
+          }
+          EOF
+          
+          # Enable Nginx site
+          sudo ln -sf /etc/nginx/sites-available/chatbot-app /etc/nginx/sites-enabled/
+          sudo rm -f /etc/nginx/sites-enabled/default
+          
+          # Test Nginx configuration
+          sudo nginx -t
+          
+          # Reload systemd and start services
+          echo "🔄 Starting application services..."
+          sudo systemctl daemon-reload
+          sudo systemctl enable chatbot-app
+          sudo systemctl restart chatbot-app
+          sudo systemctl reload nginx
+          
+          # Wait for services to start
+          sleep 15
+          
+          # Check service status
+          echo "📊 Checking service status..."
+          sudo systemctl status chatbot-app --no-pager
+          sudo systemctl status nginx --no-pager
+          
+          # Check application logs for debugging
+          echo "🔍 Checking application logs..."
+          sudo journalctl -u chatbot-app --no-pager -n 20
+          
+          # Test application health
+          echo "🏥 Testing application health..."
+          for i in {1..5}; do
+            if curl -f http://localhost:5000/api/health; then
+              echo "✅ Application is healthy!"
+              break
+            else
+              echo "⏳ Waiting for application to start... (attempt $i/5)"
+              sleep 10
+            fi
+          done
+          
+          # Final status check
+          echo "🎯 Final deployment status:"
+          echo "Application URL: http://${{ secrets.EC2_HOST }}"
+          echo "Health Check: http://${{ secrets.EC2_HOST }}/api/health"
+          echo "Service Status:"
+          sudo systemctl is-active chatbot-app
+          sudo systemctl is-active nginx
+          
+          echo "🎉 Deployment completed successfully!"
+          echo "=================================="
+

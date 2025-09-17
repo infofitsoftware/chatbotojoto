@@ -53,7 +53,7 @@ def create_app():
             if app.gemini_model:
                 try:
                     # Create a prompt for the AI
-                    prompt = f"""You are a helpful doctor.Please respond to only health related query otherwise say you have no idea:
+                    prompt = f"""You are a helpful doctor.Please respond to only health related query otherwise say you have no idea do not do anything else:
 
 User: {user_message}
 
