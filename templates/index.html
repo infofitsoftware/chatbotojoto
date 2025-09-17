@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Application</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid h-100">
+        <div class="row h-100">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar">
+                <div class="sidebar-header">
+                    <h4><i class="fas fa-robot"></i> AI Chat</h4>
+                    <p class="text-muted">Powered by Google Gemini</p>
+                </div>
+                
+                <div class="sidebar-content">
+                    <div class="chat-info">
+                        <div class="info-item">
+                            <i class="fas fa-database"></i>
+                            <span>Database: <span id="db-status">Checking...</span></span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-brain"></i>
+                            <span>AI Status: <span id="ai-status">Checking...</span></span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-comments"></i>
+                            <span>Messages: <span id="message-count">0</span></span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-outline-primary btn-sm w-100" onclick="loadChatHistory()">
+                            <i class="fas fa-history"></i> Load History
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="clearChat()">
+                            <i class="fas fa-trash"></i> Clear Chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main Chat Area -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <div class="chat-container">
+                    <!-- Chat Header -->
+                    <div class="chat-header">
+                        <h3><i class="fas fa-comments"></i> Chat with AI</h3>
+                        <div class="connection-status">
+                            <span class="badge" id="connection-status">Connecting...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Messages -->
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="welcome-message">
+                            <div class="message ai-message">
+                                <div class="message-content">
+                                    <i class="fas fa-robot"></i>
+                                    <p>Hello! I'm your AI assistant powered by Google Gemini. How can I help you today?</p>
+                                </div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Input -->
+                    <div class="chat-input">
+                        <div class="input-group">
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="message-input" 
+                                   placeholder="Type your message here..."
+                                   maxlength="1000">
+                            <button class="btn btn-primary" 
+                                    type="button" 
+                                    id="send-button"
+                                    onclick="sendMessage()">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                        <div class="input-footer">
+                            <small class="text-muted">
+                                Press Enter to send • <span id="char-count">0</span>/1000 characters
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loading-spinner" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>AI is thinking...</p>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
